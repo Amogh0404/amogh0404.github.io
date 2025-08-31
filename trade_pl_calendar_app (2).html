@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trade P/L Calendar — Single‑File App</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#151821;
+    --panel-2:#1b2030;
+    --text:#e6e9ef;
+    --muted:#aeb3c2;
+    --accent:#66d9ef;
+    --danger:#ef5350;
+    --success:#4caf50;
+    --warn:#ffca28;
+    --grid:#20263a;
+    --shadow: 0 10px 25px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji", "Segoe UI Symbol";
+    color:var(--text);
+    background:linear-gradient(180deg, #0f1115 0%, #0f1115 50%, #0e1322 100%);
+  }
+  .app{
+    max-width:1200px;
+    margin:24px auto 80px;
+    padding:0 16px;
+  }
+  header{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    gap:16px;
+    align-items:start;
+    margin-bottom:16px;
+  }
+  .title{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .title h1{
+    margin:0;
+    font-weight:700;
+    letter-spacing:.3px;
+    font-size:clamp(18px, 2.4vw, 26px);
+  }
+  .month-switcher{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--panel);
+    border:1px solid #262c40;
+    border-radius:14px;
+    padding:10px 12px;
+    box-shadow:var(--shadow);
+  }
+  .btn{
+    border:1px solid #2a3150;
+    background:linear-gradient(180deg, #1a1f31, #141827);
+    color:var(--text);
+    border-radius:12px;
+    padding:8px 12px;
+    cursor:pointer;
+    transition:.2s ease;
+    user-select:none;
+  }
+  .btn:hover{transform:translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.35)}
+  .btn:active{transform:translateY(0)}
+  .ghost{background:transparent}
+  .accent{border-color:#2f6b7a; background:linear-gradient(180deg,#17333a,#0f252a)}
+  .danger{border-color:#5a2a2a; background:linear-gradient(180deg,#2a1616,#1e1212)}
+  .success{border-color:#2a5a3a; background:linear-gradient(180deg,#15331f,#0f2617)}
+  .muted{color:var(--muted)}
+  .total-box{
+    background:var(--panel);
+    border:1px solid #29314b;
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:14px 16px;
+    min-width: 260px;
+  }
+  .total-box .label{font-size:12px; color:var(--muted); letter-spacing:.2px}
+  .total-box .value{margin-top:6px; font-size:24px; font-weight:800}
+  .total-box .value.positive{color:var(--success)}
+  .total-box .value.negative{color:var(--danger)}
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    margin:10px 0 18px;
+  }
+  .drop{
+    border:2px dashed #2a3150; background:var(--panel-2);
+    border-radius:16px; padding:16px;
+  }
+  .drop-inner{
+    display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+  }
+  .drop h3{margin:0 0 8px; font-size:15px; letter-spacing:.2px}
+  .drop p{margin:0; color:var(--muted); font-size:13px}
+  input[type=file]{display:none}
+  .file-label{
+    border:1px dashed #35507a; border-radius:12px;
+    padding:10px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+  }
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+  .chip{font-size:12px; border:1px solid #2d3557; background:#161c2f; color:var(--muted);
+        padding:6px 10px; border-radius:999px}
+  .calendar{
+    margin-top:14px;
+    background:var(--panel);
+    border:1px solid #262c40;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .cal-header{
+    display:grid; grid-template-columns: repeat(7, 1fr);
+    background:#0f1424; border-bottom:1px solid #222942;
+  }
+  .cal-header div{
+    padding:10px 8px; text-align:center; color:var(--muted); font-weight:600;
+    letter-spacing:.4px; font-size:12px;
+  }
+  .grid{
+    display:grid; grid-template-columns:repeat(7, 1fr);
+    gap:0; background:var(--grid);
+  }
+  .day{
+    min-height:120px;
+    background:var(--panel);
+    border-right:1px solid #20263a;
+    border-bottom:1px solid #20263a;
+    position:relative;
+    display:flex; align-items:center; justify-content:center;
+    padding:8px;
+  }
+  .day:nth-child(7n){border-right:none}
+  .date-num{
+    position:absolute; top:6px; left:8px; font-size:12px; color:var(--muted); font-weight:700;
+  }
+  .pl{
+    font-weight:800; font-size:18px; letter-spacing:.3px; text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  }
+  .pl.positive{color: #9be29f;}
+  .pl.negative{color: #ff8a80;}
+  .shade{
+    position:absolute; inset:0; opacity:.14; border-radius:0;
+  }
+  .shade.positive{background:#2ecc71}
+  .shade.negative{background:#e74c3c}
+  .shade.neutral{background:#aeb3c2; opacity:.08}
+  .empty{background:linear-gradient(180deg, #13182a, #111527)}
+  .legend{margin:12px 2px 0; color:var(--muted); font-size:12px}
+  .log{
+    white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size:12px; background:#0d1222; border:1px solid #222942; border-radius:10px; padding:10px; color:#b9c1d9;
+    max-height:200px; overflow:auto;
+  }
+  .cookie-banner{
+    position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+    width:min(820px, calc(100% - 24px));
+    background:#121827; border:1px solid #28304a; color:var(--text);
+    border-radius:14px; box-shadow:var(--shadow); padding:14px 16px; z-index:1000;
+    display:none;
+  }
+  .cookie-banner.show{display:block}
+  .cookie-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+  .hidden{display:none !important}
+  .thin{font-weight:400}
+  .right-stack{display:flex; gap:12px; align-items:stretch}
+  .tag{background:#0f1528; color:var(--muted); font-size:11px; border:1px solid #273055; padding:4px 8px; border-radius:999px}
+.stats{position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:11px; line-height:1.1; color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">
+        <div class="month-switcher">
+          <button id="prevMonth" class="btn ghost" title="Previous Month">◀</button>
+          <div>
+            <div id="monthYear" style="font-weight:800"></div>
+            <div id="rangeTag" class="tag thin">Showing saved history</div>
+            <div id="monthTotal" class="tag thin">Month P/L: $0.00</div>
+          </div>
+          <button id="nextMonth" class="btn ghost" title="Next Month">▶</button>
+        </div>
+        <div class="legend">Upload CSVs anytime — the calendar updates &amp; remembers your history.</div>
+      </div>
+      <div class="right-stack">
+        <div class="total-box" id="totalBox">
+          <div class="label">Total P/L (all time)</div>
+          <div class="value" id="totalPL">$0.00</div>
+          <div class="legend thin" id="fileCount">0 files imported</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="toolbar drop" id="dropZone">
+      <div class="drop-inner" style="width:100%">
+        <div>
+          <h3>Add trades</h3>
+          <p>Drop CSV files here, or <label class="file-label"><input type="file" id="fileInput" accept=".csv" multiple />browse CSVs</label></p>
+          <div class="chips">
+            <div class="chip">If filename contains <strong>main</strong>: read <em>Date</em> and <em>Amount</em></div>
+            <div class="chip">Otherwise: read <em>Activity Date</em> and <em>Amount</em></div>
+            <div class="chip">Daily totals drive red/green shading</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center">
+          <button class="btn accent" id="exportJson">Export data</button>
+          <button class="btn danger" id="resetData" title="Clear saved history">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="calendar">
+      <div class="cal-header">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="grid" id="calendarGrid"></div>
+    </section>
+
+    <div class="legend">Import Log</div>
+    <div class="log" id="log">Ready.</div>
+  </div>
+
+  <div class="cookie-banner" id="cookieBanner">
+    <div><strong>We use cookies</strong> to store your calendar totals locally (no servers). This keeps your P/L history between sessions.</div>
+    <div class="cookie-actions">
+      <button class="btn success" id="cookieAccept">Allow cookies</button>
+      <button class="btn ghost" id="cookieDecline">Decline</button>
+    </div>
+  </div>
+
+<script>
+/* ========================== UTILITIES ========================== */
+
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,'0');
+const fmtMoney = (n) => {
+  if (!isFinite(n)) return '$0.00';
+  const sign = n < 0 ? '-' : '';
+  const v = Math.abs(n);
+  return sign + v.toLocaleString(undefined, {style:'currency', currency:'USD', minimumFractionDigits:2}).replace('$','\$');
+};
+const parseMoney = (s) => {
+  if (s === null || s === undefined) return 0;
+  if (typeof s === 'number') return s;
+  // Handle parentheses for negatives and commas, $ signs
+  let str = String(s).trim();
+  if (!str) return 0;
+  let neg = false;
+  if (str.startsWith('(') && str.endsWith(')')) { neg = true; str = str.slice(1,-1); }
+  str = str.replace(/[,$\s]/g,'');
+  let val = parseFloat(str);
+  if (!isFinite(val)) val = 0;
+  return neg ? -val : val;
+};
+const toKeyDate = (d) => {
+  // Normalize to local YYYY-MM-DD
+  const dt = (d instanceof Date) ? d : new Date(d);
+  return dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate());
+};
+const guessDate = (raw) => {
+  // Accepts MM/DD/YYYY, YYYY-MM-DD, YYYY/MM/DD, DD-MMM-YYYY, etc.
+  if (raw instanceof Date) return raw;
+  let s = String(raw).trim();
+  if (!s) return null;
+  // Replace common separators
+  s = s.replace(/\./g,'/').replace(/-/g,'/');
+  // Handle like 2025/8/3
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) return dt;
+  return null;
+};
+const hashAdler32 = (str) => {
+  // simple checksum to dedupe files
+  let a = 1, b = 0;
+  for (let i=0;i<str.length;i++){
+    a = (a + str.charCodeAt(i)) % 65521;
+    b = (b + a) % 65521;
+  }
+  return ((b << 16) | a) >>> 0;
+};
+/* Cookie helpers */
+function setCookie(name, value, days=365) {
+  if (!window.__cookieConsent) return;
+  const expires = new Date(Date.now() + days*864e5).toUTCString();
+  document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + expires + '; path=/; SameSite=Lax';
+}
+function getCookie(name) {
+  return document.cookie.split('; ').reduce((r, v) => {
+    const parts = v.split('=');
+    return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+  }, '');
+}
+/* Also keep a shadow copy in localStorage for bigger space (best effort) */
+function persistData() {
+  try {
+    const payload = JSON.stringify(state.persist());
+    setCookie('plcal', payload);
+    localStorage.setItem('plcal', payload);
+  } catch(e){ log('Persist error: ' + e.message); }
+}
+function loadPersisted() {
+  let payload = getCookie('plcal');
+  if (!payload) payload = localStorage.getItem('plcal') || '';
+  if (!payload) return;
+  try {
+    const obj = JSON.parse(payload);
+    state.hydrate(obj);
+  } catch(e){ log('Load error: ' + e.message); }
+}
+
+/* ========================== STATE ========================== */
+const state = {
+  // Map YYYY-MM-DD -> sum
+  dailyPL: {},
+  dailyCount: {},
+  dailyWins: {},
+  // File registry filename|size -> checksum
+  processedFiles: {},
+  totalPL: 0,
+  current: (()=>{ const now = new Date(); return {month: now.getMonth(), year: now.getFullYear()}; })(),
+  persist(){ return {dailyPL:this.dailyPL, dailyCount:this.dailyCount, dailyWins:this.dailyWins, processedFiles:this.processedFiles, totalPL:this.totalPL}; },
+  hydrate(obj){
+    if (!obj) return;
+    this.dailyPL = obj.dailyPL || {};
+    this.dailyCount = obj.dailyCount || {};
+    this.dailyWins = obj.dailyWins || {};
+    this.processedFiles = obj.processedFiles || {};
+    this.totalPL = obj.totalPL || 0;
+  }
+};
+
+/* ========================== CSV PARSER ========================== */
+function parseCSV(text){
+  // Robust-ish CSV parser for commas & quotes
+  const rows = [];
+  let i=0, cur='', inQ=false, row=[];
+  while (i < text.length) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { cur += '"'; i++; }
+        else { inQ = false; }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { row.push(cur); cur=''; }
+      else if (ch === '\n') { row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if (ch === '\r') { /* ignore */ }
+      else cur += ch;
+    }
+    i++;
+  }
+  if (cur.length || row.length) { row.push(cur); rows.push(row); }
+  // Trim trailing empty lines
+  while (rows.length && rows[rows.length-1].every(c=>String(c).trim()==='')) rows.pop();
+  return rows;
+}
+
+function headersToMap(headerRow) {
+  // Lower-case map of header->index
+  const map = {};
+  headerRow.forEach((h, idx) => map[String(h || '').trim().toLowerCase()] = idx);
+  return map;
+}
+
+// "AI" heuristics to map columns when names vary
+function smartPick(map, wantedList) {
+  for (const key of wantedList) {
+    const k = key.toLowerCase();
+    if (k in map) return map[k];
+  }
+  // fuzzy contains search
+  for (const k in map) {
+    for (const w of wantedList) {
+      const wlc = w.toLowerCase();
+      if (k.includes(wlc)) return map[k];
+    }
+  }
+  return -1;
+}
+
+/* ========================== IMPORT & ANALYZE ========================== */
+function log(msg){
+  const el = $('#log');
+  const time = new Date().toLocaleTimeString();
+  el.textContent += `\n[${time}] ${msg}`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function importCSVFile(file){
+  const name = file.name || 'unnamed.csv';
+  const text = await file.text();
+  const checksum = hashAdler32(text);
+  const key = `${name}|${file.size}`;
+  if (state.processedFiles[key] === checksum) {
+    log(`Skip duplicate file: ${name}`);
+    return;
+  }
+  const isMain = /main/i.test(name);
+  const rows = parseCSV(text);
+  if (!rows.length){ log(`No rows in ${name}`); return; }
+  const header = rows[0];
+  const map = headersToMap(header);
+
+  // Figure out which columns to use based on filename rules
+  let dateIdx = -1, amtIdx = -1;
+  if (isMain) {
+    dateIdx = smartPick(map, ['date']);
+    amtIdx  = smartPick(map, ['amount','p/l','pl','profit','net amount','net']);
+  } else {
+    dateIdx = smartPick(map, ['activity date','activity_date','date']);
+    amtIdx  = smartPick(map, ['amount','p/l','pl','profit','net amount','net']);
+  }
+  if (dateIdx === -1 || amtIdx === -1) {
+    log(`Could not find required columns in ${name}. Need a date and amount column.`);
+    return;
+  }
+
+  let imported = 0;
+  for (let r=1;r<rows.length;r++){
+    const row = rows[r];
+    if (!row || row.length===0) continue;
+    const rawDate = row[dateIdx];
+    const rawAmt = row[amtIdx];
+    if (String(rawDate).trim()==='' && String(rawAmt).trim()==='') continue;
+
+    const dt = guessDate(rawDate);
+    if (!dt) { continue; }
+    const keyDate = toKeyDate(dt);
+    const amt = parseMoney(rawAmt);
+    if (!isFinite(amt)) continue;
+
+    state.dailyPL[keyDate] = (state.dailyPL[keyDate] || 0) + amt;
+    state.dailyCount[keyDate] = (state.dailyCount[keyDate] || 0) + 1;
+    if (amt > 0) state.dailyWins[keyDate] = (state.dailyWins[keyDate] || 0) + 1;
+    state.totalPL += amt;
+    imported++;
+  }
+  state.processedFiles[key] = checksum;
+  updateTotalsUI();
+  renderCalendar();
+  persistData();
+  log(`Imported ${imported} trades from ${name} (${isMain ? 'main' : 'other'} mode).`);
+  $('#fileCount').textContent = Object.keys(state.processedFiles).length + ' files imported';
+}
+
+function updateTotalsUI(){
+  const el = $('#totalPL');
+  el.textContent = fmtMoney(state.totalPL);
+  el.classList.toggle('positive', state.totalPL >= 0);
+  el.classList.toggle('negative', state.totalPL < 0);
+}
+
+/* ========================== CALENDAR ========================== */
+function renderCalendar(){
+const {month, year} = state.current;
+  const grid = $('#calendarGrid');
+  grid.innerHTML = '';
+  $('#monthYear').textContent = new Date(year, month, 1).toLocaleString(undefined, {month:'long', year:'numeric'});
+
+  const firstDay = new Date(year, month, 1).getDay(); // 0-6 Sun-Sat
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  // Month P/L
+  let monthTotal = 0;
+  for (let d=1; d<=daysInMonth; d++){
+    const dk = toKeyDate(new Date(year, month, d));
+    monthTotal += (state.dailyPL[dk] || 0);
+  }
+  const mt = document.getElementById('monthTotal');
+  if (mt){ mt.textContent = 'Month P/L: ' + fmtMoney(monthTotal); mt.style.color = monthTotal>0?'#9be29f':(monthTotal<0?'#ff8a80':'var(--muted)'); }
+
+  // Leading blanks
+  for (let i=0;i<firstDay;i++){
+    const cell = document.createElement('div');
+    cell.className = 'day empty';
+    grid.appendChild(cell);
+  }
+  // Actual days
+  for (let d=1; d<=daysInMonth; d++){
+    const cell = document.createElement('div');
+    cell.className = 'day';
+    const dateKey = toKeyDate(new Date(year, month, d));
+    const pl = state.dailyPL[dateKey] || 0;
+    const shade = document.createElement('div');
+    shade.className = 'shade ' + (pl>0 ? 'positive' : (pl<0 ? 'negative' : 'neutral'));
+    const num = document.createElement('div');
+    num.className = 'date-num';
+    num.textContent = d;
+    const val = document.createElement('div');
+    val.className = 'pl ' + (pl>0 ? 'positive' : (pl<0 ? 'negative' : ''));
+    val.textContent = pl === 0 ? '' : fmtMoney(pl);
+    const trades = state.dailyCount[dateKey] || 0;
+    const wins = state.dailyWins[dateKey] || 0;
+    const pct = trades ? Math.round((wins / trades) * 100) : 0;
+    const stats = document.createElement('div');
+    stats.className = 'stats';
+    stats.innerHTML = trades ? `${trades} trades<br>${pct}%` : '';
+    cell.appendChild(shade);
+    cell.appendChild(num);
+    cell.appendChild(val);
+    cell.appendChild(stats);
+    grid.appendChild(cell);
+  }
+  // Trailing blanks to fill grid
+  const totalCells = firstDay + daysInMonth;
+  const rem = (7 - (totalCells % 7)) % 7;
+  for (let i=0;i<rem;i++){
+    const cell = document.createElement('div');
+    cell.className = 'day empty';
+    grid.appendChild(cell);
+  }
+}
+
+
+/* ========================== COOKIE CONSENT ========================== */
+function ensureCookieConsent(){
+  const banner = $('#cookieBanner');
+  const consent = getCookie('plcal_consent');
+  if (consent === 'yes'){ window.__cookieConsent = true; banner.classList.remove('show'); return; }
+  if (consent === 'no'){ window.__cookieConsent = false; banner.classList.remove('show'); return; }
+  banner.classList.add('show');
+  $('#cookieAccept').onclick = () => {
+    window.__cookieConsent = true;
+    setCookie('plcal_consent','yes',3650);
+    banner.classList.remove('show');
+    persistData();
+  };
+  $('#cookieDecline').onclick = () => {
+    window.__cookieConsent = false;
+    setCookie('plcal_consent','no',3650);
+    banner.classList.remove('show');
+  };
+}
+
+/* ========================== EVENTS ========================== */
+$('#fileInput').addEventListener('change', async (e)=>{
+  for (const f of e.target.files) await importCSVFile(f);
+  e.target.value='';
+});
+['dragenter','dragover'].forEach(evt => {
+  $('#dropZone').addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); $('#dropZone').style.borderColor = '#4c7bd9'; });
+});
+['dragleave','drop'].forEach(evt => {
+  $('#dropZone').addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); $('#dropZone').style.borderColor = '#2a3150'; });
+});
+$('#dropZone').addEventListener('drop', async (e)=>{
+  const files = [...e.dataTransfer.files].filter(f => /\.csv$/i.test(f.name));
+  if (!files.length){ log('No CSV files detected in drop.'); return; }
+  for (const f of files) await importCSVFile(f);
+});
+
+$('#prevMonth').onclick = () => {
+  state.current.month--;
+  if (state.current.month < 0){ state.current.month = 11; state.current.year--; }
+  renderCalendar();
+};
+$('#nextMonth').onclick = () => {
+  state.current.month++;
+  if (state.current.month > 11){ state.current.month = 0; state.current.year++; }
+  renderCalendar();
+};
+$('#resetData').onclick = () => {
+  if (!confirm('Clear all saved totals and file history?')) return;
+  state.dailyPL = {}; state.totalPL = 0; state.processedFiles = {};
+  persistData(); updateTotalsUI(); renderCalendar();
+  $('#fileCount').textContent = '0 files imported';
+  log('All saved data cleared.');
+};
+$('#exportJson').onclick = () => {
+  const blob = new Blob([JSON.stringify(state.persist(), null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), {href:url, download:'pl_calendar_data.json'});
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+};
+
+// Init
+ensureCookieConsent();
+loadPersisted();
+updateTotalsUI();
+renderCalendar();
+$('#fileCount').textContent = Object.keys(state.processedFiles).length + ' files imported';
+</script>
+</body>
+</html>
